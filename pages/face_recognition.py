@@ -1,12 +1,10 @@
 import streamlit as st
 import cv2 as cv
 import numpy as np
-from PIL import Image
-import os
 import joblib
 from face_recognition_onnx.utils import get_parser
 from face_recognition_onnx.utils import draw_rectangle
-from pages.utils import handle_image_upload
+from utils import handle_image_upload, handle_camera_input
 
 
 class FaceRecognitionPage:
@@ -51,64 +49,25 @@ class FaceRecognitionPage:
             result, img_in, img_out, image_status = recognize_face()
 
             if result is not None:
-                processed_image, person_name, confidence = result
+                processed_image = result
 
                 # Display the processed image with face detections
                 img_out.image(processed_image, caption="Processed Image", use_container_width=True)
 
                 # Display the recognition results
-                image_status.success(f"Recognized person: {person_name}, Confidence score: {confidence:.2f}")
+                image_status.success(f"Recognized this one")
             else:
                 if image_status is not None:
                     image_status.error("Failed to process image. Please try again with a clearer image.")
 
         with tab2:
-            self._handle_camera_input()
+            @handle_camera_input(header_text="Face Recognition in real-time")
+            def recognize_camera(image):
+                return self._process_detect_faces(image)
+            recognize_camera()
 
         with tab3:
             st.header("Not Implemented", anchor=False)
-
-    def _handle_camera_input(self):
-        """Handle camera input functionality with continuous capture."""
-        st.header("Real-Time Face Detection and Recognition", anchor=False)
-        
-        # Import required libraries
-        from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
-        import av
-        # Import the necessary context handler for threads
-        from streamlit.runtime.scriptrunner import add_script_run_ctx
-        import threading
-        
-        class FaceDetector(VideoProcessorBase):
-            def __init__(self, face_rec_page):
-                self.face_rec_page = face_rec_page
-                # Store the current script run context
-                self.ctx = threading.current_thread()
-                add_script_run_ctx(self.ctx)
-            
-            def recv(self, frame):
-                img = frame.to_ndarray(format="bgr24")
-                
-                # Process the frame with your existing face recognition logic
-                processed_result = self.face_rec_page._process_detect_faces(img)
-                
-                if processed_result is not None:
-                    # Use the processed image that already has rectangles and labels
-                    return av.VideoFrame.from_ndarray(processed_result[0], format="bgr24")
-                
-                # Return original frame if processing failed
-                return av.VideoFrame.from_ndarray(img, format="bgr24")
-        
-        # Create a webRTC streamer with your custom processor
-        webrtc_streamer(
-            key="face-detection",
-            video_processor_factory=lambda: FaceDetector(self),
-            media_stream_constraints={"video": True, "audio": False},
-            async_processing=True,
-        )
-        
-        # Add information below the video stream
-        st.info("Faces will be automatically detected and recognized in real-time")
 
     def _load_model(self):
         args = get_parser()
@@ -153,13 +112,6 @@ class FaceRecognitionPage:
                 st.error("No faces detected in the image!")
                 return None
 
-            # Process each detected face
-            face_count = len(faces[1])
-            results = []
-            combined_result = ""
-            highest_confidence = 0
-            most_confident_person = None
-
             # Draw rectangles for all faces
             draw_rectangle(img_copy, faces, None)
 
@@ -174,21 +126,11 @@ class FaceRecognitionPage:
 
                 # Get raw decision scores for all classes
                 decision_scores = self.svm.decision_function(face_feature)[0] if hasattr(self.svm, 'decision_function') else 0
-
                 # Map numeric prediction to name
-                mydict = ["dat", 'loi']
+                mydict = ["Doan", "Hieu", "Dat", "Lap", "Loi"]
                 result = mydict[test_predict]
 
-                # Keep track of the most confident prediction
-                if abs(decision_scores) > abs(highest_confidence):
-                    highest_confidence = decision_scores
-                    most_confident_person = result
-
-                # Store results for this face
-                results.append((result, decision_scores))
-
-                # Add to combined result string
-                combined_result += f"{result}({decision_scores:.2f}), "
+                decision_scores = softmax(decision_scores)[test_predict]
 
                 # Draw result on image - position text above each face
                 # Get coordinates for this specific face
@@ -205,9 +147,7 @@ class FaceRecognitionPage:
             rgb_image = cv.cvtColor(img_copy, cv.COLOR_BGR2RGB)
 
             # Return the processed image and recognition results
-            # For simplicity in the return value, we'll use the most confident prediction
-            # while the image shows all identified faces
-            return rgb_image, most_confident_person, highest_confidence
+            return rgb_image
 
         except Exception as e:
             # Log the full error for debugging
