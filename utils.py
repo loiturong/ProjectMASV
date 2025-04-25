@@ -57,7 +57,7 @@ def handle_camera_input(header_text: str, fps: int = 30, height: int = 640, widt
     Decorator that handles webcam input and real-time processing.
     
     Args:
-        header_text: Text displayed as header above the webcam stream
+        :param header_text: Text displayed as a header above the webcam stream
         :param width: Width of the webcam stream
         :param height: Height of the webcam stream
         :param fps: frames per second

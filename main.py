@@ -57,20 +57,19 @@ class HomePage:
             self._render_feature_section(
                 "Object Detection",
                 "resources/YOLO__Schreibtisch_mit_Objekten.jpg",
-                "Identify and track objects in real-time using YOLOv8n."
+                "Identify and track objects in real-time using YOLO11n and its fruit-ed fine-tuned version."
             )
             if st.button("Go to YOLO page"):
-                pass
                 st.switch_page("pages/objection_yolo.py")
 
         with col3:
             self._render_feature_section(
                 "Image Transformation",
-                "https://via.placeholder.com/150",
+                "resources/digit_proc.png",
                 "Digital Image Transformation technique implemented using numpy and OpenCV."
             )
             if st.button("Go to Image Transformation"):
-                pass
+                st.switch_page("pages/digital_processing.py")
 
         with col4:
             self._render_feature_section(
