@@ -4,15 +4,43 @@ import numpy as np
 
 
 def _load_chapter_3(func_list):
+    import digital_image_processing.intensity_transform_spatical_filter as chapter3
     function = func_list.selectbox("Select Function in Chapter 3:",
                         ["Image Negatives",
                          "Log Transformations",
                          "Power-Law (Gamma) Transformations",
                          "Contrast Stretching",
+                         "Thresholding",
                          "Intensity-Level Slicing",
-                         "Histogram Equalization"
+                         "Bit Plane Shifting",
+                         "Histogram Visualize",
+                         "Histogram Equalization",
+                         "Local Histogram Equalization"
                          ])
-    return function
+    match function:
+        case "Image Negatives":
+            return chapter3.negative
+        case "Log Transformations":
+            return chapter3.log_transform
+        case "Power-Law (Gamma) Transformations":
+            return chapter3.gamma_transform
+        case "Contrast Stretching":
+            return chapter3.contrast_stretching
+        case "Thresholding":
+            return chapter3.intensity_thresholding
+        case "Intensity-Level Slicing":
+            return chapter3.intensity_slicing
+        case "Bit Plane Shifting":
+            return chapter3.bit_plane_shift
+        case "Histogram Visualize":
+            return chapter3.histogram_visualize
+        case "Histogram Equalization":
+            return chapter3.histogram_equalization
+        case "Local Histogram Equalization":
+            return chapter3.local_histogram
+        case _:
+            st.error("Not a implemented function!")
+            return None
 
 def _load_chapter_4(func_list):
     function = func_list.selectbox("Select Function in Chapter 4:",
@@ -95,42 +123,48 @@ class DigitalProcessingPage:
         # Add parameter input field
         param_input = st.text_input("Function Parameters (e.g. 'factor=1, max=12', leave blank if none), lookup in the book:", "")
 
-        # Parse parameters
-        params = parse_parameters(param_input)
-
-        status = st.empty()
-        st.divider()
         tab1, tab2, tab3 = st.tabs(["Upload Image", "Camera", "Database Images"])
         with tab1:
             from utils import handle_image_upload
             @handle_image_upload(header_text="Upload Image", button_text="run Digital Processing")
             def _process_upload(image):
                 # check if the image is np.array
-                if not getattr(image, "shape"):
+                if not hasattr(image, "shape"):
                     image = np.array(image)
                 # convert to grayscale
                 if len(image.shape) == 3:
                     image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+                # Parse parameters
+                params = parse_parameters(param_input)
 
                 return function(image, **params)
-            _process_upload()
+            result, img_in, img_out, image_status = _process_upload()
+
+            if result is not None:
+                img_out.image(result, caption="Processed Image", use_container_width=True)
+                image_status.success(f"Processed successfully!")
+
+                # Convert NumPy array to a Pillow image
+                from PIL import Image
+                import io
+                result = Image.fromarray(result)
+                # Save the image to an in-memory buffer (BytesIO)
+                img_buffer = io.BytesIO()
+                result.save(img_buffer, format="PNG")
+                img_buffer.seek(0)  # Reset cursor after writing the file
+                st.download_button(
+                    label="Download Image",  # Button text
+                    data=img_buffer,  # BytesIO object containing the image
+                    file_name="saved_image.png",  # Default file name for download
+                    mime="image/png"  # MIME type of the file
+                )
 
         with tab2:
-            from utils import handle_camera_input
-            @handle_camera_input(header_text="Record camera", fps=24)
-            def _process_upload(image):
-                # check if the image is np.array
-                if not getattr(image, "shape"):
-                    image = np.array(image)
-                # convert to grayscale
-                if len(image.shape) == 3:
-                    image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-
-                return function(image, **params)
-            _process_upload()
+            st.header("Not Implemented", anchor=False)
 
         with tab3:
             st.header("Not Implemented", anchor=False)
+
 
 if __name__ == "__main__":
     DigitalProcessingPage().render()

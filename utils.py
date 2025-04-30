@@ -31,7 +31,7 @@ def handle_image_upload(header_text:str, button_text:str):
             image_status = st.empty()
 
             # Create the file uploader widget with customizable text
-            uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png", "bmp", "mp4"])
+            uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png", "bmp", "tif"])
 
             if uploaded_file is not None:
                 # Read and display the uploaded image
