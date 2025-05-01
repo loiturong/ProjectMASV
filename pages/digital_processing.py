@@ -137,8 +137,6 @@ class DigitalProcessingPage:
     def __init__(self):
         self.title = ":rainbow[Digital Processing] :gray[Tool]"
         self.welcome_message = "Welcome to our Digital Processing Application! This tool provides capabilities of digital processing."
-        self.model = None
-        self.func = None
 
     def render(self):
         st.title(self.title, anchor=False)
