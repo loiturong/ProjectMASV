@@ -10,11 +10,11 @@ __all__ = ["negative",
            "bit_plane_shift",
            "histogram_visualize",
            "histogram_equalization",
-           "local_histogram"
+           "local_histogram",
+           "histogram_statistic",
+           "sharpening",
+           "gradient"
            ]
-
-from networkx.classes import neighbors
-
 
 def negative(image, **kwargs):
     # Ensure it's a NumPy array
@@ -34,12 +34,9 @@ def log_transform(image: np.ndarray, **kwargs) -> np.ndarray:
     # check if image is a gray scale image
     assert (image_np.ndim == 2), "Must be an Gray Scale Image."
 
-    if "L" in kwargs:
-        L = kwargs["constant_factor"]
-    else:
-        L: int = 255
+    l = kwargs["L"] if "L" in kwargs else 255
 
-    constant = (L - 1.0) / np.log(1.0 * L)
+    constant = (l - 1.0) / np.log(1.0 * l)
     image_np = constant * np.log(1.0 + image_np)
 
     # convert back to 8-bit integer to show in scale 0-255
@@ -53,18 +50,12 @@ def gamma_transform(image: np.ndarray, **kwargs) -> np.ndarray:
     # check if image is a gray scale image
     assert (image_np.ndim == 2), "Must be an Gray Scale Image."
 
-    if "gamma" in kwargs:
-        gamma = float(kwargs["gamma"])
-    else:
-        gamma = 2.5
-
-    if "L" in kwargs:
-        L = kwargs["L"]
-    else:
-        L = 255
+    # Get params for Transformation function
+    gamma = float(kwargs["gamma"]) if "gamma" in kwargs else 2.5
+    l = kwargs["L"] if "L" in kwargs else 255
 
     # compute constant value with respect to gamma value (and L)
-    constant = np.power(L - 1.0 , 1.0 - gamma)
+    constant = np.power(l - 1.0 , 1.0 - gamma)
 
     image_np = constant * np.power(image_np, gamma)
 
@@ -77,39 +68,27 @@ def contrast_stretching(image: np.ndarray, **kwargs) -> np.ndarray:
     return np.array(new_weight * (image - r_min), dtype=np.uint8)
 
 def intensity_thresholding(image: np.ndarray, **kwargs) -> np.ndarray:
-    if "threshold" in kwargs:
-        threshold = kwargs["threshold"]
-    else:
-        threshold = np.mean(image)
+    # Get params for Transformation function
+    threshold = int(kwargs["threshold"]) if "threshold" in kwargs else np.mean(image)
+
     return np.array(np.where(image > threshold, 255, 0), dtype=np.uint8)
 
 def intensity_slicing(image: np.ndarray, **kwargs) -> np.ndarray:
-    if "mode" in kwargs:
-        mode = kwargs["mode"]
-    else:
-        mode = "linear"
-    if "A" in kwargs:
-        a = int(kwargs["A"])
-    else:
-        a = np.mean(image) - 25
-    if "B" in kwargs:
-        b = int(kwargs["B"])
-    else:
-        b = np.mean(image) + 25
-    if "C" in kwargs:
-        c = int(kwargs["C"])
-    else:
-        c = np.max(image)
+    # Get params for Transformation function
+    mode = kwargs["mode"] if "mode" in kwargs else "linear"
+    a = int(kwargs["A"]) if "A" in kwargs else np.mean(image) - 25
+    b = int(kwargs["B"]) if "B" in kwargs else np.mean(image) + 25
+    c = int(kwargs["C"]) if "C" in kwargs else np.max(image)
+
     if mode == "linear":
         return np.array(np.where((a < image) & (image < b), c, image), dtype=np.uint8)
     elif mode == "highlights":
         return np.array(np.where((a < image) & (image < b), c, 0), dtype=np.uint8)
 
 def bit_plane_shift(image: np.ndarray, **kwargs):
-    if "bits" in kwargs:
-        bits = int(kwargs["bits"])
-    else:
-        bits = 87654321    # MSB
+    # Get params for Transformation function
+    bits = int(kwargs["bits"]) if "bits" in kwargs else 8   # default plane is the MSB plane
+
     new_image = np.zeros(shape=image.shape, dtype=np.uint8)
     while bits > 0:
         new_image |= np.uint8((1 << (bits % 10 - 1)) & image)
@@ -127,31 +106,85 @@ def histogram_visualize(image: np.ndarray, **kwargs):
     return buffer_out
 
 def histogram_equalization(image: np.ndarray, **kwargs):
-    cum_sum = [0 for _ in range(256)]
-    height, width = image.shape
-    cum_sum[0] = np.sum(image == 0) / (height * width)
-    buffer_out = np.array(np.where(image == 0, np.int8(round(255 * cum_sum[0])), np.array(0)), dtype=np.uint8)
-    for i in range(1, 256):
-        cum_sum[i] = cum_sum[i - 1] + np.sum(image == i) / (height * width)
-        buffer_out = np.array(np.where(image == i, np.int8(round(255 * cum_sum[i])), buffer_out), dtype=np.uint8)
+    cum_sum = np.histogram(image, bins=256, range=(0, 255))[0]
+    cum_sum = np.cumsum(cum_sum, dtype=np.float32) / np.multiply(image.shape[0], image.shape[1])
+    cum_sum = (np.round(cum_sum * 255)).astype(np.uint8)
 
-    return buffer_out
+    return cum_sum[image]   # using an 2D array as index for 1D array is FANCY
 
 def local_histogram(image: np.ndarray, **kwargs):
     height, width = image.shape
     buffer_out = np.zeros((height, width), np.uint8)
-    if "filter_size" in kwargs:
-        filter_size = int(kwargs["filter_size"])
-    else:
-        filter_size = 3
 
-    for i in range(height)[::filter_size]:
-        for j in range(width)[::filter_size]:
-            pointer_i = i + filter_size if i + filter_size < height else height - 1
-            pointer_j = j + filter_size if j + filter_size < width else width - 1
-            buffer_out[i:pointer_i, j:pointer_j] = histogram_equalization(image[i:pointer_i, j:pointer_j])
+    filter_size = int(kwargs["filter_size"]) if "filter_size" in kwargs else 3
+
+    for i in range(0, height, filter_size):
+        for j in range(0, width, filter_size):
+            end_i = i + filter_size if i + filter_size < height else height - 1
+            end_j = j + filter_size if j + filter_size < width else width - 1
+            this_block = image[i:end_i, j:end_j]
+            # print(f"\rProcessing: ({i}, {j}) to ({end_j}, {end_j})", end="")
+            buffer_out[i:end_i, j:end_j] = histogram_equalization(this_block)
 
     return buffer_out
+
+def histogram_statistic(image: np.array, **kwargs):
+    domain_range = np.linspace(0, 255, 256)
+
+    def compute_mean(x: np.array):
+        glob_hist = np.histogram(x, bins=256, range=(0,255))[0] / (x.shape[0] * x.shape[1])
+        return np.round(np.sum(domain_range * glob_hist)).astype(np.uint8)
+
+    def compute_std(x: np.array, mean: int = None):
+        glob_hist = np.histogram(x, bins=256, range=(0,255))[0] / (x.shape[0] * x.shape[1])
+        return np.round(np.sqrt(np.sum(np.power(domain_range - mean, 2) * glob_hist)))
+
+    image_glob_mean = compute_mean(image)
+    image_glob_std = compute_std(image, image_glob_mean)
+    # get params, default according to book
+    filter_size = int(kwargs["filter_size"]) if "filter_size" in kwargs else 3
+    k0 = int(kwargs["k0"]) if "ko" in kwargs else 0
+    k1 = int(kwargs["k1"]) if "k1" in kwargs else 0.25
+    k2 = int(kwargs["k2"]) if "k2" in kwargs else 0
+    k3 = int(kwargs["k3"]) if "k3" in kwargs else 0.1
+    constant = np.uint8(kwargs["constant"]) if "constant" in kwargs else 22.8
+    height, width = image.shape
+    buffer_out = np.copy(image).astype(np.uint8)
+    for i in range(0, height, filter_size):
+        for j in range(0, width, filter_size):
+            end_i = i + filter_size if i + filter_size < height else height - 1
+            end_j = j + filter_size if j + filter_size < width else width - 1
+            this_block = image[i:end_i, j:end_j]
+
+            local_mean = compute_mean(this_block)
+            local_std = compute_std(this_block, local_mean)
+
+            # print(f"\rProcessing: ({i}, {j}) to ({end_j}, {end_j})", end="")
+            if (k0 * image_glob_mean <= local_mean) and (local_mean <= k1 * image_glob_mean):
+                if (k2 * image_glob_std <= local_std) and (local_std <= k3 * image_glob_std):
+                    buffer_out[i:end_i, j:end_j] = np.multiply(this_block, constant)
+
+    return buffer_out
+
+def sharpening(image: np.ndarray, **kwargs):
+    kernel = np.array([[1, 1, 1], [1, -8, 1], [1, 1, 1]])
+
+    laplacian_filtered = cv.filter2D(image, cv.CV_32FC1, kernel)
+    buffer_out = image - laplacian_filtered
+    buffer_out = np.clip(buffer_out, 0, 255).astype(np.uint8)
+    return buffer_out
+
+
+def gradient(image: np.ndarray, **kwargs):
+    kernel_x = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], np.float32)
+    kernel_y = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], np.float32)
+    gx = cv.filter2D(image, cv.CV_32FC1, kernel_x)
+    gy = cv.filter2D(image, cv.CV_32FC1, kernel_y)
+
+    image = np.sqrt(np.power(gx, 2) + np.power(gy, 2))
+    image = np.clip(image, 0, 255).astype(np.uint8)
+    
+    return image
 
 if __name__ == "__main__":
     pass

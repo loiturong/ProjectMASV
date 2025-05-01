@@ -15,7 +15,10 @@ def _load_chapter_3(func_list):
                          "Bit Plane Shifting",
                          "Histogram Visualize",
                          "Histogram Equalization",
-                         "Local Histogram Equalization"
+                         "Local Histogram Equalization",
+                         "Histogram Statistic",
+                         "Laplacian Filtering",
+                         "Gradient Image"
                          ])
     match function:
         case "Image Negatives":
@@ -38,21 +41,55 @@ def _load_chapter_3(func_list):
             return chapter3.histogram_equalization
         case "Local Histogram Equalization":
             return chapter3.local_histogram
+        case "Histogram Statistic":
+            return chapter3.histogram_statistic
+        case "Laplacian Filtering":
+            return chapter3.sharpening
+        case "Gradient Image":
+            return chapter3.gradient
         case _:
             st.error("Not a implemented function!")
             return None
 
 def _load_chapter_4(func_list):
+    import digital_image_processing.filtering_frequency_domain as chapter4
     function = func_list.selectbox("Select Function in Chapter 4:",
-                                   [
+                                   ["Fourier Spectrum",
+                                    "Phase Angle",
+                                    "Remove Moire Simple",
+                                    "Remove Moire Complex",
+                                    "Remove Interference"
                                     ])
-    return function
+    match function:
+        case "Fourier Spectrum":
+            return chapter4.get_image_spectrum
+        case "Phase Angle":
+            return chapter4.get_image_phase_angle
+        case "Remove Moire Simple":
+            return chapter4.remove_moire_simple
+        case "Remove Moire Complex":
+            return chapter4.remove_moire
+        case "Remove Interference":
+            return chapter4.remove_interference
+        case _:
+            st.error("Not a implemented function!")
+            return None
 
 def _load_chapter_9(func_list):
+    import digital_image_processing.morphological_image_processing as chapter9
     function = func_list.selectbox("Select Function in Chapter 9:",
                                    [
+                                    "Connected Component Analysis",
+                                    "Remove Small Objects"
                                     ])
-    return function
+    match function:
+        case "Connected Component Analysis":
+            return chapter9.connected_component
+        case "Remove Small Objects":
+            return chapter9.remove_small_rice
+        case _:
+            st.error("Not a implemented function!")
+            return None
 
 def process_chapter(chapter, func_list):
     match chapter:
@@ -126,7 +163,7 @@ class DigitalProcessingPage:
         tab1, tab2, tab3 = st.tabs(["Upload Image", "Camera", "Database Images"])
         with tab1:
             from utils import handle_image_upload
-            @handle_image_upload(header_text="Upload Image", button_text="run Digital Processing")
+            @handle_image_upload(header_text="Upload Image", button_text="Process Image")
             def _process_upload(image):
                 # check if the image is np.array
                 if not hasattr(image, "shape"):
